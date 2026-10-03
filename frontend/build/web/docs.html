@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIZAN (ميزان) - Detailed Project Documentation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-canvas: #FAF8F5;
+            --bg-surface: #FFFFFF;
+            --bg-instrument: #F6F2EB;
+            --gold: #9A7B3E;
+            --gold-subtle: #FAF6EE;
+            --gold-border: #DFD3B6;
+            --text-primary: #1C1917;
+            --text-secondary: #57534E;
+            --text-muted: #8D857B;
+            --border: #E6DFD5;
+            --safe: #15803D;
+            --safe-bg: #F0FDF4;
+            --suspicious: #B45309;
+            --suspicious-bg: #FFFBEB;
+            --high-risk: #B91C1C;
+            --high-risk-bg: #FEF2F2;
+        }
+
+        @keyframes gradientMove {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(-45deg, #FAF8F5, #F3EDF5, #FAF6EE, #FFFFFF);
+            background-size: 400% 400%;
+            animation: gradientMove 15s ease infinite;
+            color: var(--text-primary);
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Ambient Animated Orbs */
+        .ambient-orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(100px);
+            z-index: -1;
+            opacity: 0.5;
+        }
+
+        .orb-1 {
+            width: 450px;
+            height: 450px;
+            background: rgba(154, 123, 62, 0.2); /* Gold */
+            top: -150px;
+            left: -150px;
+            animation: float1 18s infinite ease-in-out;
+        }
+
+        .orb-2 {
+            width: 550px;
+            height: 550px;
+            background: rgba(180, 83, 9, 0.1); /* Suspicious Amber */
+            bottom: -200px;
+            right: -150px;
+            animation: float2 22s infinite ease-in-out reverse;
+        }
+
+        .orb-3 {
+            width: 400px;
+            height: 400px;
+            background: rgba(21, 128, 61, 0.1); /* Safe Green */
+            top: 40%;
+            left: 60%;
+            animation: float1 25s infinite ease-in-out 5s;
+        }
+
+        @keyframes float1 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(60px, 80px) scale(1.1); }
+        }
+
+        @keyframes float2 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(-80px, -60px) scale(1.05); }
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 60px 30px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .mizan-badge {
+            display: inline-flex;
+            align-items: center;
+            background: var(--gold-subtle);
+            border: 1px solid var(--gold-border);
+            color: var(--gold);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            margin-bottom: 24px;
+        }
+
+        h1 {
+            font-size: 48px;
+            font-weight: 800;
+            letter-spacing: -1.5px;
+            margin: 0 0 16px 0;
+            color: var(--text-primary);
+        }
+
+        .subtitle {
+            font-size: 20px;
+            color: var(--text-secondary);
+            font-weight: 400;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .section {
+            background: var(--bg-surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 40px;
+            box-shadow: 0 8px 24px rgba(28, 25, 23, 0.04);
+        }
+
+        h2 {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--gold);
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 12px;
+            margin-top: 0;
+            margin-bottom: 24px;
+            letter-spacing: -0.5px;
+        }
+
+        h3 {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-top: 32px;
+            margin-bottom: 12px;
+        }
+
+        p {
+            font-size: 15px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .highlight-box {
+            background: var(--bg-instrument);
+            border-left: 4px solid var(--gold);
+            padding: 20px;
+            border-radius: 0 12px 12px 0;
+            margin: 24px 0;
+        }
+
+        .highlight-box strong {
+            color: var(--gold);
+        }
+
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin-top: 24px;
+        }
+
+        .tech-card {
+            background: var(--bg-canvas);
+            border: 1px solid var(--border);
+            padding: 24px;
+            border-radius: 12px;
+        }
+
+        .tech-card h4 {
+            margin: 0 0 12px 0;
+            font-size: 16px;
+            color: var(--text-primary);
+        }
+
+        .code-block {
+            font-family: 'Roboto Mono', monospace;
+            background: #1C1917;
+            color: #E6DFD5;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            overflow-x: auto;
+            margin: 16px 0;
+        }
+
+        .verdict-scale {
+            display: flex;
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .verdict-box {
+            flex: 1;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .verdict-safe { background: var(--safe-bg); border: 1px solid var(--safe); color: var(--safe); }
+        .verdict-suspicious { background: var(--suspicious-bg); border: 1px solid var(--suspicious); color: var(--suspicious); }
+        .verdict-risk { background: var(--high-risk-bg); border: 1px solid var(--high-risk); color: var(--high-risk); }
+
+        .verdict-box h4 {
+            margin: 0 0 8px 0;
+            font-size: 18px;
+            font-weight: 800;
+        }
+
+        .verdict-box p {
+            margin: 0;
+            font-size: 13px;
+            color: inherit;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 60px;
+            padding-top: 30px;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Ambient Animated Background -->
+<div class="ambient-orb orb-1"></div>
+<div class="ambient-orb orb-2"></div>
+<div class="ambient-orb orb-3"></div>
+
+<div class="container">
+    
+    <div class="header">
+        <div class="mizan-badge">MIZAN (ميزان) — FINANCIAL SAFETY INSTRUMENT</div>
+        <h1>Measure Before You Trust.</h1>
+        <p class="subtitle">A highly detailed architectural breakdown of the MIZAN multi-vector heuristic risk engine and the Explainable AI (XAI) dashboard.</p>
+    </div>
+
+    <div class="section">
+        <h2>1. The Core Philosophy & Problem Statement</h2>
+        <p>With the explosive adoption of UPI (Unified Payments Interface) in India, cybercriminals no longer rely on complex hacking or brute-force attacks. Instead, they rely entirely on <strong>Social Engineering</strong>. They manipulate victims into authorizing payments or clicking malicious links by creating a false sense of urgency, fear, or fake rewards.</p>
+        
+        <div class="highlight-box">
+            <strong>The "Black Box" Problem:</strong> Most traditional anti-spam systems act as black boxes. They output a binary "Fake" or "Safe" result without context. If a user doesn't understand <em>why</em> a message is dangerous, they are likely to ignore the warning.
+        </div>
+        
+        <p><strong>The Solution: MIZAN (ميزان - The Scale).</strong> MIZAN is an advanced, evidence-based forensic instrument. Instead of just flagging a message as "Fake", MIZAN acts as an <strong>Explainable AI (XAI)</strong> dashboard. It parses the payload, weighs the threat vectors on a 0-100 scale, and breaks down EXACTLY why a message is dangerous, educating the user on the specific tactics used by the scammer.</p>
+    </div>
+
+    <div class="section">
+        <h2>2. System Architecture</h2>
+        <p>The project is built on a high-performance Client-Server architecture optimized for offline-ready, zero-latency processing (Phase 1).</p>
+        
+        <div class="tech-grid">
+            <div class="tech-card">
+                <h4>Frontend Thin-Client (Flutter)</h4>
+                <p>A cross-platform (Windows/Web/Mobile) UI designed with a premium, sophisticated aesthetic. It features a Verification Desk that accepts text payloads, URLs, and QR code image uploads. The UI dynamically adapts its color palette (Safe/Suspicious/High Risk) based on the backend's findings.</p>
+            </div>
+            <div class="tech-card">
+                <h4>Heuristic Backend (FastAPI / Python)</h4>
+                <p>A lightweight REST API housing the "Mizan Measurement Engine". It executes deterministic rules and live network forensics (DNS, HTTP tracing) to analyze payloads synchronously. It generates structured JSON reports containing `why_flagged` and `recommended_action` arrays.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>3. The Multi-Vector Heuristic Engine (Deep Dive)</h2>
+        <p>The backend does not rely on simple word counting. It utilizes a 4-Vector contextual evaluation matrix to catch sophisticated attacks.</p>
+
+        <h3>Vector A: Social Engineering & Coercion (Utility Scams)</h3>
+        <p>Scammers use emotional manipulation to bypass logical thinking. The engine cross-references "Urgency" triggers ("immediately", "within 24 hours") with "Fear" vectors ("fine", "arrest").</p>
+        <p><strong>Specifically targeted for India:</strong> The engine has dedicated logic for the <em>Electricity Disconnection Scam</em>. If it detects utility keywords ("electricity", "unpaid bills", "disconnected") alongside urgency, it immediately flags a Critical Extortion Threat.</p>
+
+        <h3>Vector B: Payment Behavior Conflict (The Golden UPI Rule)</h3>
+        <p>The most devastating UPI scam is tricking a user into entering their UPI PIN to <em>receive</em> money (e.g., OLX scams, Fake Cashbacks).</p>
+        <p><strong>The Logic:</strong> The engine looks for a contradiction in payment flow. If it detects intent to receive ("receive", "claim", "credited") in the same payload as an authentication action ("enter pin", "scan qr"), it triggers the highest possible risk score. <em>You never need a PIN to receive money.</em></p>
+
+        <h3>Vector C: Conversational Spear Phishing (Hinglish Support)</h3>
+        <p>Traditional engines fail when a scammer poses as a friend using conversational language (e.g., <em>"Bhai mera phone kharab hai, urgent paise bhej"</em>). MIZAN contains a dedicated Hinglish Impersonation Module.</p>
+        <p><strong>The Logic:</strong> It calculates an intersection of three vectors: Familiarity ("bhai", "dost") + Emergency ("kharab", "stuck") + Action ("paise bhej", "gpay kar"). When these align, the system realizes this is a hijacked account or "new number" scam and advises the user to call the person on their old known number.</p>
+
+        <h3>Vector D: Advanced URL & Network Forensics</h3>
+        <p>This module goes beyond text parsing and actively pings the internet to verify domain integrity.</p>
+        <div class="tech-grid">
+            <div class="tech-card">
+                <h4>DNS Resolution Checking</h4>
+                <p>The engine uses Python's <code>dns.resolver</code> to query A-Records. Cybercriminal domains are often blackholed or taken offline quickly. If the domain fails to resolve to an IP, MIZAN flags it as a disposable/dead domain.</p>
+            </div>
+            <div class="tech-card">
+                <h4>Shannon Entropy (DGA Detection)</h4>
+                <p>Malware uses Domain Generation Algorithms (DGA) to create random URLs (e.g., <code>http://kjhsdgfks.com</code>). MIZAN calculates the Shannon Entropy of the domain string. An entropy score &gt; 4.0 mathematically proves the domain was machine-generated, not human-readable.</p>
+            </div>
+            <div class="tech-card">
+                <h4>Redirect Tracing</h4>
+                <p>Scammers hide malicious URLs behind short-links (bit.ly, tinyurl). MIZAN executes a live <code>requests.head(allow_redirects=True)</code> trace to unmask the true destination URL before analyzing it.</p>
+            </div>
+            <div class="tech-card">
+                <h4>IP Obfuscation & Typosquatting</h4>
+                <p>Flags URLs that bypass DNS and use raw IP addresses (e.g., <code>http://192.168.1.1</code>). It also catches Typosquatting by checking if the domain contains brand names (e.g., "hdfc") but doesn't end in the official <code>.com</code> or <code>.co.in</code>.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>4. The Measurement Scale & Explainable AI (XAI)</h2>
+        <p>Instead of a binary output, MIZAN places every payload on a 0 to 100 Risk Balance Index.</p>
+        
+        <div class="verdict-scale">
+            <div class="verdict-box verdict-safe">
+                <h4>0 - 34: SAFE</h4>
+                <p><strong>Insufficient Evidence:</strong> MIZAN explicitly tells the user that while no heuristic threats were found, it doesn't prove the sender is legitimate. (Zero false promises).</p>
+            </div>
+            <div class="verdict-box verdict-suspicious">
+                <h4>35 - 69: SUSPICIOUS</h4>
+                <p><strong>Proceed with Caution:</strong> Ambiguous indicators detected (e.g., urgency without financial demands).</p>
+            </div>
+            <div class="verdict-box verdict-risk">
+                <h4>70 - 100: HIGH RISK</h4>
+                <p><strong>Fraud Vector Detected:</strong> Confirmed scam signatures. The engine outputs explicit reasons under "Why We Flagged This" and actionable advice under "What You Should Do".</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>5. Hackathon Defense & Phase 2 (Future Scope)</h2>
+        <p>MIZAN is currently an MVP relying on a Deterministic Heuristic Engine. While incredibly fast (zero-latency) and effective, rigid rule-based engines can be bypassed by complex synonyms.</p>
+        
+        <div class="highlight-box">
+            <strong>The Phase 2 Architecture:</strong> The current system is designed so that the heuristic dictionary can be cleanly swapped out for a fine-tuned Multilingual LLM (like BERT or Llama) for semantic intent detection. Phase 2 will also integrate Graph Neural Networks to analyze UPI ID transaction history and Metadata Reputation via APIs (e.g., Truecaller) to evaluate sender trust before ever analyzing the text.
+        </div>
+    </div>
+
+    <div class="footer">
+        MIZAN (ميزان) — Built for Next-Generation Financial Verification.<br>
+        Developed for the 2024 Hackathon.
+    </div>
+
+</div>
+
+</body>
+</html>
