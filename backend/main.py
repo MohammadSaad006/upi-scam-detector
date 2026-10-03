@@ -14,8 +14,8 @@ from typing import Optional
 
 app = FastAPI(
     title="TrustGuard Forensic UPI Intelligence API",
-    description="A multi-layered forensic engine for UPI/payment scam detection using NLP, DNS Intelligence, and Shannon Entropy analysis.",
-    version="4.2.0",
+    description="A multi-layered forensic engine for UPI/payment scam detection using Evidence-Based Analysis.",
+    version="5.0.0",
 )
 
 app.add_middleware(
@@ -26,7 +26,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory scan history store
 scan_history: list = []
 
 # ─── Pydantic Models ─────────────────────────────────────────────────────────
@@ -47,6 +46,8 @@ class AnalyzeResponse(BaseModel):
     metrics: dict
     forensic_report: dict
     explainability: list[ExplainabilityNote]
+    why_flagged: list[str]
+    recommended_action: list[str]
     timestamp: str
     scan_id: str
 
@@ -58,64 +59,36 @@ class HistoryItem(BaseModel):
     scam_category: str
     preview: str
 
-# ─── Forensic Analysis Engine ─────────────────────────────────────────────────
+# ─── Evidence-Based Risk Engine ─────────────────────────────────────────────────
 
 class ForensicAnalyzer:
     def __init__(self):
-        # Linguistic vectors
-        self.urgency_words = [
-            "urgently", "immediately", "within 24 hours", "within 48 hours",
-            "suspend", "block", "expire", "expiry", "action required",
-            "last chance", "final notice", "account deactivated",
-        ]
-        self.financial_words = [
-            "kyc", "pan", "aadhar", "refund", "cashback", "lottery",
-            "prize", "winner", "credited", "reward", "bonus", "claim",
-            "otp", "cvv", "pin", "upi", "neft", "imps",
-        ]
-        self.impersonation_words = [
-            "rbi", "income tax", "police", "cbi", "cyber cell", "court",
-            "government", "official", "nabard", "sebi", "irdai",
-        ]
-        self.social_engineering = [
-            "don't tell anyone", "keep confidential", "secret code",
-            "click here", "tap here", "download now", "install app",
-        ]
+        # 1. Social Engineering
+        self.se_urgency = ["urgent", "urgently", "immediately", "within 24 hours", "suspend", "block", "expire", "action required"]
+        self.se_fear = ["deactivated", "penalty", "warrant", "arrest", "fine", "court", "disconnect", "disconnected", "unpaid"]
+        self.se_reward = ["lottery", "prize", "winner", "cashback", "lucky draw", "free gift"]
+        
+        # 2. Payment Behavior
+        self.pay_receive = ["receive", "claim", "credited to", "get refund", "cashback of"]
+        self.pay_auth = ["pin", "otp", "password", "cvv", "scan qr", "enter upi pin"]
+        
+        # 3. Identity Signals & Conversational Phishing
+        self.impersonation = ["rbi", "income tax", "police", "cbi", "cyber cell", "sbi official", "hdfc support", "electricity board"]
+        
+        self.conv_familiar = ["bhai", "bro", "dost", "friend", "pehchana", "uncle", "aunty", "mummy", "papa", "sir"]
+        self.conv_emergency = ["emergency", "kharab", "hospital", "accident", "zaroorat", "help", "stuck", "problem"]
+        self.conv_action = ["paise bhej", "send money", "gpay", "paytm", "phonepe", "naya number", "new number", "transfer", "udhar", "wapas", "return"]
 
-        # Network vectors
-        self.suspicious_tlds = [
-            ".xyz", ".top", ".loan", ".win", ".club", ".click",
-            ".asia", ".tk", ".ml", ".cf", ".ga", ".gq", ".info",
-        ]
-        self.spoof_targets = [
-            "sbi", "hdfc", "icici", "paytm", "phonepe", "gpay",
-            "bank", "axis", "kotak", "yesbank", "rbl", "npci",
-            "upi", "bhim", "amazonpay",
-        ]
-
-        # Scam category classification rules
-        self.scam_categories = {
-            "KYC Fraud":          ["kyc", "pan", "aadhar", "document", "verify"],
-            "Refund Scam":        ["refund", "cashback", "credited", "tds refund"],
-            "Lottery / Prize":    ["lottery", "prize", "winner", "congratulations", "lucky draw"],
-            "Impersonation":      ["rbi", "income tax", "police", "cbi", "government official"],
-            "OTP Phishing":       ["otp", "pin", "cvv", "share", "enter"],
-            "Malicious URL":      [],  # Set dynamically from URL analysis
-            "Social Engineering": ["don't tell", "confidential", "secret", "download", "install"],
-        }
-
-    # ── Entropy Calculator (DGA Detection) ──────────────────────────────────
+        self.suspicious_tlds = [".xyz", ".top", ".loan", ".win", ".club", ".click", ".asia", ".tk", ".ml", ".cf", ".ga", ".gq", ".info"]
+        self.spoof_targets = ["sbi", "hdfc", "icici", "paytm", "phonepe", "gpay", "bank", "axis", "kotak"]
 
     def calculate_entropy(self, text: str) -> float:
-        if not text:
-            return 0.0
+        if not text: return 0.0
         entropy = 0.0
         for x in Counter(text).values():
             p_x = float(x) / len(text)
             entropy -= p_x * math.log2(p_x)
         return round(entropy, 2)
-
-    # ── DNS Resolver ─────────────────────────────────────────────────────────
 
     def resolve_dns(self, domain: str) -> list:
         try:
@@ -124,8 +97,6 @@ class ForensicAnalyzer:
         except Exception:
             return []
 
-    # ── Redirect Tracer ──────────────────────────────────────────────────────
-
     def trace_redirects(self, url: str) -> str:
         try:
             response = requests.head(url, allow_redirects=True, timeout=3)
@@ -133,240 +104,178 @@ class ForensicAnalyzer:
         except Exception:
             return url
 
-    # ── Extractors ───────────────────────────────────────────────────────────
-
     def extract_urls(self, text: str) -> list:
         return re.findall(r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*', text)
 
     def extract_entities(self, text: str) -> dict:
         phones = re.findall(r'\+?\d{10,14}', text)
         upi_pattern = re.findall(r'[\w.\-]+@[\w.\-]+', text)
-        upi_ids = [u for u in upi_pattern if any(
-            ext in u for ext in ["ybl", "ibl", "oksbi", "okaxis", "okicici", "okhdfcbank", "paytm", "upi"]
-        )]
-        return {"phones": phones, "upi_ids": upi_ids}
-
-    # ── Scam Category Classifier ─────────────────────────────────────────────
-
-    def classify_scam(self, text_lower: str, has_malicious_url: bool) -> str:
-        scores = {cat: 0 for cat in self.scam_categories}
-        for category, keywords in self.scam_categories.items():
-            for kw in keywords:
-                if kw in text_lower:
-                    scores[category] += 1
-        if has_malicious_url:
-            scores["Malicious URL"] += 2
-        top = max(scores, key=scores.get)
-        return top if scores[top] > 0 else "Unknown"
-
-    # ── Confidence Calculator ────────────────────────────────────────────────
-
-    def calculate_confidence(self, score: int, evidence_count: int) -> str:
-        if score >= 80 and evidence_count >= 4:
-            return "Very High (>95%)"
-        elif score >= 60 and evidence_count >= 3:
-            return "High (~85%)"
-        elif score >= 40:
-            return "Medium (~65%)"
-        elif score >= 20:
-            return "Low (~40%)"
-        else:
-            return "Very Low (<20%)"
-
-    # ── Master Analysis Pipeline ─────────────────────────────────────────────
+        return {"phones": phones, "upi_ids": upi_pattern}
 
     def analyze_deep(self, text: str) -> dict:
         text_lower = text.lower()
         score = 0
         highlights = []
-        explainability: list[dict] = []
+        explainability = []
+        why_flagged = []
+        recommended_action = []
+        
         metrics = {"urgency": 0, "financial": 0, "url_risk": 0, "impersonation": 0}
-        forensic_report = {
-            "network_analysis": [],
-            "linguistic_analysis": [],
-            "entity_extraction": {}
-        }
-        has_malicious_url = False
+        forensic_report = {"network_analysis": [], "linguistic_analysis": [], "entity_extraction": {}}
+        
+        scam_categories_detected = set()
 
-        # ── Module 1: Urgency Semantic Analysis ──────────────────────────────
-        for word in self.urgency_words:
-            if re.search(r'\b' + re.escape(word) + r'\b', text_lower):
-                score += 20
-                metrics["urgency"] += 1
-                highlights.append(word)
-                forensic_report["linguistic_analysis"].append(
-                    f"Urgency trigger detected: '{word}' — a classic social-engineering pressure tactic."
-                )
-                explainability.append({
-                    "module": "Semantic NLP",
-                    "finding": f"Urgency keyword: '{word}'",
-                    "weight": 20,
-                    "evidence": f"The word '{word}' is a high-frequency social engineering trigger used in 73% of phishing messages (CERT-In 2023)."
-                })
+        # ── 1. Payment Behavior (The Core UPI Logic) ──
+        has_receive = any(w in text_lower for w in self.pay_receive)
+        has_auth = any(w in text_lower for w in self.pay_auth)
+        
+        if has_receive and has_auth:
+            score += 80
+            metrics["financial"] += 2
+            scam_categories_detected.add("Payment Reversal / Refund Scam")
+            why_flagged.append("✓ Requests UPI PIN/OTP to 'receive' money.")
+            recommended_action.append("✕ NEVER enter your UPI PIN to receive funds. PINs are only for sending money.")
+            explainability.append({
+                "module": "Payment Behavior",
+                "finding": "Conflicting payment flow (Receive + Auth)",
+                "weight": 80,
+                "evidence": "UPI architecture dictates that receiving money NEVER requires entering a PIN. Asking for a PIN to 'claim' money is a definitive scam signature."
+            })
+        elif has_auth:
+            score += 30
+            metrics["financial"] += 1
+            why_flagged.append("✓ Requests sensitive authentication (PIN/OTP).")
+            recommended_action.append("✓ Verify the recipient identity before approving any transaction.")
 
-        # ── Module 2: Financial Manipulation Detection ────────────────────────
-        for word in self.financial_words:
-            if re.search(r'\b' + re.escape(word) + r'\b', text_lower):
-                score += 15
-                metrics["financial"] += 1
-                highlights.append(word)
-                forensic_report["linguistic_analysis"].append(
-                    f"Financial manipulation keyword: '{word}' — used to create false monetary urgency."
-                )
+        # ── 2. Social Engineering (Urgency & Fear) ──
+        has_urgency = any(w in text_lower for w in self.se_urgency)
+        has_fear = any(w in text_lower for w in self.se_fear)
+        
+        if has_urgency or has_fear:
+            score += 25
+            metrics["urgency"] += 1
+            if has_fear: scam_categories_detected.add("Coercion / Extortion")
+            why_flagged.append("✓ Uses urgency or threat (e.g., account block, disconnection).")
+            recommended_action.append("✕ Do not panic or act under pressure. Verify directly with the official service.")
+            
+        has_utility = any(w in text_lower for w in ["electricity", "power", "unpaid", "bill", "disconnected"])
+        if has_utility and (has_urgency or has_fear):
+            score += 20
+            metrics["urgency"] += 1
+            scam_categories_detected.add("Utility Disconnection Scam")
+            why_flagged.append("✓ Threatens utility/service disconnection for unpaid bills.")
+            
+        if any(w in text_lower for w in self.se_reward):
+            score += 40
+            metrics["urgency"] += 1
+            scam_categories_detected.add("Lottery / Prize Scam")
+            why_flagged.append("✓ Unsolicited reward or lottery claim.")
+            recommended_action.append("✕ Do not pay 'clearance fees' to claim a prize you didn't enter.")
 
-        # ── Module 3: Authority Impersonation Detection ───────────────────────
-        for word in self.impersonation_words:
+        # ── 3. Identity & Impersonation ──
+        for word in self.impersonation:
             if re.search(r'\b' + re.escape(word) + r'\b', text_lower):
                 score += 30
                 metrics["impersonation"] += 1
                 highlights.append(word)
-                forensic_report["linguistic_analysis"].append(
-                    f"Authority impersonation detected: '{word}' — attacker is posing as a trusted institution."
-                )
-                explainability.append({
-                    "module": "Impersonation Detector",
-                    "finding": f"Authority keyword: '{word}'",
-                    "weight": 30,
-                    "evidence": f"Mentioning '{word}' creates false authority. RBI/CERT-In has confirmed this pattern in 89% of social engineering attacks."
-                })
+                scam_categories_detected.add("Authority Impersonation")
+                why_flagged.append(f"✓ Impersonation of authority/institution ('{word}').")
+                recommended_action.append(f"✓ Contact {word.upper()} through their official listed phone number, not the one in this message.")
+                break # count once
 
-        # ── Module 4: Entity Extraction ───────────────────────────────────────
-        entities = self.extract_entities(text_lower)
-        forensic_report["entity_extraction"] = entities
-        for upi in entities.get("upi_ids", []):
-            if re.search(r'fraud|random|cash|prize|free|win', upi):
-                score += 35
-                highlights.append(upi)
-                forensic_report["network_analysis"].append(
-                    f"Suspicious UPI handle: '{upi}' — contains scam-associated keywords."
-                )
-                explainability.append({
-                    "module": "UPI Handle Inspector",
-                    "finding": f"Malformed UPI: {upi}",
-                    "weight": 35,
-                    "evidence": "Legitimate UPI IDs from payment providers never contain words like 'prize', 'cash', or 'winner'."
-                })
+        # ── 3.5. Conversational Spear Phishing (Hinglish/English) ──
+        has_familiar = any(re.search(r'\b' + re.escape(w) + r'\b', text_lower) for w in self.conv_familiar)
+        has_emergency = any(re.search(r'\b' + re.escape(w) + r'\b', text_lower) for w in self.conv_emergency) or has_urgency
+        has_action = any(re.search(r'\b' + re.escape(w) + r'\b', text_lower) for w in self.conv_action)
+        
+        if (has_familiar or has_emergency) and has_action:
+            score += 45
+            metrics["impersonation"] += 1
+            scam_categories_detected.add("Spear Phishing / Impersonation")
+            why_flagged.append("✓ Detects informal request for money/help, often associated with hijacked accounts or 'new number' impersonation.")
+            recommended_action.append("✕ Call the person directly on their OLD, known phone number to verify their identity before sending any money.")
 
-        # ── Module 5: URL & Network Forensics ────────────────────────────────
+        # ── 4. URL & Network Risk ──
         urls = self.extract_urls(text)
+        has_malicious_url = False
         for original_url in urls:
             final_url = self.trace_redirects(original_url)
             if final_url != original_url:
-                forensic_report["network_analysis"].append(
-                    f"Redirect chain traced: {original_url} → {final_url}"
-                )
-                explainability.append({
-                    "module": "Redirect Tracer",
-                    "finding": "URL redirects detected",
-                    "weight": 15,
-                    "evidence": f"URL hides its true destination via redirect chain. Final destination: {final_url}"
-                })
-
+                why_flagged.append(f"✓ URL redirect traced: hiding true destination ({final_url}).")
+                
             parsed = urllib.parse.urlparse(final_url)
             domain = parsed.netloc.lower().replace("www.", "")
 
-            # IP obfuscation check
+            # IP obfuscation
             if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", domain):
                 score += 50
                 has_malicious_url = True
-                highlights.append(domain)
-                forensic_report["network_analysis"].append(
-                    f"Direct IP-based URL detected: {domain} — bypasses DNS trust chain entirely."
-                )
-                explainability.append({
-                    "module": "Network Forensics",
-                    "finding": f"Raw IP in URL: {domain}",
-                    "weight": 50,
-                    "evidence": "Legitimate banking services never use raw IP addresses in URLs. This is a strong indicator of a hosted phishing page."
-                })
+                scam_categories_detected.add("Phishing Link")
+                why_flagged.append(f"✓ Suspicious IP-based URL detected ({domain}).")
+                recommended_action.append("✕ Do not click the link. Legitimate organizations use registered domain names.")
             else:
+                # DNS Checking
                 ips = self.resolve_dns(domain)
                 if not ips:
-                    forensic_report["network_analysis"].append(
-                        f"DNS resolution FAILED for '{domain}' — domain may be blacklisted or expired."
-                    )
-                else:
-                    forensic_report["network_analysis"].append(
-                        f"DNS resolved: '{domain}' → {', '.join(ips)}"
-                    )
+                    score += 20
+                    why_flagged.append(f"✓ DNS Resolution Failed: Domain '{domain}' is offline or blacklisted.")
 
             # Shannon Entropy (DGA Detection)
             entropy = self.calculate_entropy(domain)
-            forensic_report["network_analysis"].append(
-                f"Shannon Entropy of '{domain}': {entropy} (threshold >4.0 = DGA suspected)"
-            )
             if entropy > 4.0:
-                score += 25
-                has_malicious_url = True
-                explainability.append({
-                    "module": "Entropy Analyzer (DGA)",
-                    "finding": f"High entropy domain: {entropy}",
-                    "weight": 25,
-                    "evidence": f"A Shannon Entropy of {entropy} on domain '{domain}' exceeds the 4.0 threshold, indicating potential algorithmic domain generation (DGA) — a technique used to evade domain blacklists."
-                })
-
-            # Suspicious TLDs
-            if any(domain.endswith(tld) for tld in self.suspicious_tlds):
-                score += 25
+                score += 30
                 metrics["url_risk"] += 1
                 has_malicious_url = True
-                highlights.append(domain)
-                tld_used = next(t for t in self.suspicious_tlds if domain.endswith(t))
-                forensic_report["network_analysis"].append(
-                    f"High-risk TLD '{tld_used}' detected — commonly used in phishing campaigns due to low registration cost."
-                )
-                explainability.append({
-                    "module": "TLD Risk Classifier",
-                    "finding": f"Suspicious TLD: '{tld_used}'",
-                    "weight": 25,
-                    "evidence": f"The TLD '{tld_used}' appears in ICANN's high-risk registrar list and is used in >60% of phishing domains indexed by APWG."
-                })
+                scam_categories_detected.add("Algorithmically Generated Link (DGA)")
+                why_flagged.append(f"✓ High Shannon Entropy ({entropy}): Domain looks randomly generated by malware.")
+                recommended_action.append("✕ Do not click. This is a disposable domain used by cybercriminals.")
+                
+            # Suspicious TLD
+            if any(domain.endswith(tld) for tld in self.suspicious_tlds):
+                score += 40
+                metrics["url_risk"] += 1
+                has_malicious_url = True
+                scam_categories_detected.add("Malicious Link")
+                why_flagged.append(f"✓ Link uses a high-risk untrusted domain extension.")
+                if "✕ Do not open the link or provide any personal details on that page." not in recommended_action:
+                    recommended_action.append("✕ Do not open the link or provide any personal details on that page.")
 
-            # Brand Spoofing / Typosquatting
+            # Typosquatting
             for target in self.spoof_targets:
-                if target in domain and not any(
-                    domain == f"{target}.com" or domain == f"{target}.co.in"
-                    or domain.endswith(f".{target}.com")
-                    for _ in [None]
-                ):
+                if target in domain and not domain.endswith(f"{target}.com") and not domain.endswith(f"{target}.co.in"):
                     score += 45
                     metrics["url_risk"] += 1
                     has_malicious_url = True
-                    highlights.append(target)
-                    forensic_report["network_analysis"].append(
-                        f"Brand spoofing (typosquatting) detected: target brand '{target}' embedded in unregistered domain '{domain}'."
-                    )
-                    explainability.append({
-                        "module": "Brand Spoofing Detector",
-                        "finding": f"Typosquatting '{target}' in '{domain}'",
-                        "weight": 45,
-                        "evidence": f"The brand name '{target}' is embedded in a domain that does not belong to the actual organization. This is a typosquatting attack."
-                    })
+                    scam_categories_detected.add("Brand Spoofing")
+                    why_flagged.append(f"✓ Deceptive link trying to look like '{target}'.")
+                    if "✕ This is a fake website. Do not enter login credentials." not in recommended_action:
+                        recommended_action.append("✕ This is a fake website. Do not enter login credentials.")
+                    break
 
-        # ── Finalize Score & Verdict ───────────────────────────────────────────
+        # ── Finalize Score & Verdict ──
         score = min(score, 100)
-        evidence_count = len(explainability)
-        scam_category = self.classify_scam(text_lower, has_malicious_url)
-        confidence = self.calculate_confidence(score, evidence_count)
-
+        
+        # Determine Status and Confidence
         if score >= 70:
             status = "High Risk"
-            summary = (
-                f"THREAT CONFIRMED. This {scam_category} attempt uses {evidence_count} distinct attack vectors "
-                f"including {', '.join(set(highlights[:3]))}. Do not interact with this message, URL, or payment request."
-            )
+            confidence = "HIGH CONFIDENCE"
+            summary = "This payload exhibits definitive scam signatures. Severe risk of financial loss."
+            if not recommended_action:
+                recommended_action.append("✕ Cease all interaction with the sender.")
         elif score >= 35:
             status = "Suspicious"
-            summary = (
-                f"POTENTIAL THREAT. Forensic analysis identified {evidence_count} anomalies consistent with "
-                f"{scam_category} patterns. Exercise extreme caution before taking any action."
-            )
+            confidence = "MEDIUM CONFIDENCE"
+            summary = "Anomalies detected. This payload uses manipulative patterns often found in scams."
         else:
             status = "Safe"
-            summary = (
-                "No immediate threat vectors detected. Forensic modules found no indicators of compromise "
-                "in linguistic patterns, network routing, or entity structures."
-            )
+            confidence = "INSUFFICIENT EVIDENCE"
+            summary = "No strong scam indicators detected. ⚠ This does NOT prove the message is definitively legitimate, only that it passes heuristic checks."
+            if not why_flagged:
+                why_flagged.append("✓ Payload conforms to standard communication structures.")
+            if not recommended_action:
+                recommended_action.append("✓ Always remain vigilant. Verify the sender if you are unsure.")
+
+        scam_category = list(scam_categories_detected)[0] if scam_categories_detected else "General Communication"
 
         return {
             "status": status,
@@ -378,8 +287,9 @@ class ForensicAnalyzer:
             "metrics": metrics,
             "forensic_report": forensic_report,
             "explainability": explainability,
+            "why_flagged": why_flagged,
+            "recommended_action": recommended_action
         }
-
 
 analyzer = ForensicAnalyzer()
 
@@ -405,12 +315,7 @@ async def analyze_content(text: str = Form(...)):
     if len(scan_history) > 50:
         scan_history.pop()
 
-    return AnalyzeResponse(
-        **result,
-        timestamp=timestamp,
-        scan_id=scan_id,
-    )
-
+    return AnalyzeResponse(**result, timestamp=timestamp, scan_id=scan_id)
 
 @app.post("/api/analyze/qr", response_model=AnalyzeResponse)
 async def analyze_qr(file: UploadFile = File(...)):
@@ -424,14 +329,12 @@ async def analyze_qr(file: UploadFile = File(...)):
 
         if not data:
             return AnalyzeResponse(
-                status="Safe", score=0, confidence="N/A",
+                status="Safe", score=0, confidence="INSUFFICIENT EVIDENCE",
                 scam_category="None", highlights=[],
                 summary="No valid QR code payload detected in the provided image.",
-                metrics={"qr_read": False},
-                forensic_report={"qr": "No QR code found"},
-                explainability=[],
-                timestamp=datetime.utcnow().isoformat() + "Z",
-                scan_id="TG-QR-NOOP",
+                metrics={"qr_read": False}, forensic_report={"qr": "No QR code found"},
+                explainability=[], why_flagged=[], recommended_action=["✓ No action needed."],
+                timestamp=datetime.utcnow().isoformat() + "Z", scan_id="TG-QR-NOOP",
             )
 
         result = analyzer.analyze_deep(data)
@@ -441,12 +344,9 @@ async def analyze_qr(file: UploadFile = File(...)):
         timestamp = datetime.utcnow().isoformat() + "Z"
 
         scan_history.insert(0, {
-            "scan_id": scan_id,
-            "timestamp": timestamp,
-            "status": result["status"],
-            "score": result["score"],
-            "scam_category": result["scam_category"],
-            "preview": f"[QR] {data[:60]}",
+            "scan_id": scan_id, "timestamp": timestamp,
+            "status": result["status"], "score": result["score"],
+            "scam_category": result["scam_category"], "preview": f"[QR] {data[:60]}",
         })
 
         return AnalyzeResponse(**result, timestamp=timestamp, scan_id=scan_id)
@@ -454,35 +354,6 @@ async def analyze_qr(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.get("/api/history", response_model=list[HistoryItem])
 async def get_history():
     return scan_history
-
-
-@app.get("/api/health")
-def health_check():
-    return {
-        "status": "online",
-        "engine_version": "4.2.0",
-        "modules": [
-            "Semantic NLP",
-            "DNS Intelligence",
-            "Shannon Entropy / DGA Detector",
-            "Redirect Tracer",
-            "Brand Spoofing Detector",
-            "Authority Impersonation Detector",
-            "UPI Handle Inspector",
-            "TLD Risk Classifier",
-        ],
-        "scam_categories": list(analyzer.scam_categories.keys()),
-    }
-
-
-@app.get("/")
-def read_root():
-    return {
-        "product": "TrustGuard Forensic Intelligence Engine",
-        "version": "4.2.0",
-        "docs": "/docs",
-    }

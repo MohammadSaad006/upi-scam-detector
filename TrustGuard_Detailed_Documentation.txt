@@ -1,0 +1,52 @@
+=============================================================
+TRUSTGUARD: UPI SCAM DETECTOR - DETAILED PROJECT DOCUMENTATION
+=============================================================
+
+1. INTRODUCTION & PROBLEM STATEMENT
+-------------------------------------------------------------
+With the massive adoption of UPI (Unified Payments Interface) in India, cybercriminals have shifted from complex hacking to Social Engineering. Scammers manipulate victims into authorizing payments or clicking malicious links using urgency, fear, or fake rewards. 
+
+TrustGuard is an advanced, multi-layered forensic analysis engine designed to evaluate SMS, UPI payment payloads, and URLs. Instead of just flagging a message as "Fake", TrustGuard acts as an Explainable AI (XAI) dashboard that breaks down EXACTLY why a message is dangerous, educating the user on the specific tactics used by the scammer.
+
+2. SYSTEM ARCHITECTURE
+-------------------------------------------------------------
+The project is built on a modern Client-Server architecture:
+- FRONTEND (Flutter): A cross-platform UI designed with a premium, sophisticated aesthetic (Ivory and Rose Gold). It provides the Explainable AI dashboard, allowing users to input text or scan QR codes.
+- BACKEND (FastAPI / Python): A lightweight, high-performance REST API. It houses the "Evidence-Based Risk Engine" (v5.0.0) which performs deep heuristic analysis on incoming payloads without the latency of cloud LLM calls.
+
+3. THE EVIDENCE-BASED RISK ENGINE (PHASE 1)
+-------------------------------------------------------------
+Our backend doesn't just count bad words. It uses contextual heuristics divided into 4 core modules:
+
+A. Social Engineering & Extortion
+The engine detects emotional manipulation vectors. It looks for "Urgency" (e.g., "within 24 hours", "action required") combined with "Fear" (e.g., "fine", "arrest", "disconnected"). 
+* Hackathon Special: We specifically built logic to catch Utility Scams (e.g., "electricity will be disconnected"), which is a rampant scam in India.
+
+B. Payment Behavior Conflict (The Golden UPI Rule)
+The most common UPI scam is tricking users into entering their PIN to *receive* money. 
+* Logic: If the engine detects words related to receiving/claiming money AND words related to authentication (PIN, OTP, Scan QR), it triggers a Critical Threat alert. The engine explains: "You NEVER need to enter a UPI PIN to receive money."
+
+C. Conversational Spear Phishing (Hinglish/English)
+Most basic detectors fail when a scammer poses as a friend in need (e.g., "Bhai mera phone kharab hai, urgent paise bhej"). 
+* Logic: Our engine looks for a combination of Familiarity ("bhai"), Emergency ("kharab", "stuck"), and Action ("paise bhej", "gpay kar"). It successfully flags this as an Impersonation attempt and advises the user to call the person on their old number to verify.
+
+D. Advanced URL & Network Forensics
+This is the most technically advanced part of the engine:
+- IP Obfuscation: Flags URLs that bypass DNS and use raw IP addresses (e.g., http://192.168.1.1).
+- Redirect Tracing: If a short-link (bit.ly) is used, the backend traces the HTTP headers to find the true destination URL.
+- DNS Resolution Checking: Checks if the domain actually resolves to an A-Record. If the DNS is dead, it flags the domain as disposable/blacklisted.
+- Shannon Entropy (DGA Detection): Cybercriminals use Domain Generation Algorithms to create random URLs (e.g., kjsdhgfks.com). TrustGuard runs a mathematical Shannon Entropy calculation on the domain string. If the entropy is high (> 4.0), it flags the URL as machine-generated malware.
+- Typosquatting: Checks if the domain is trying to visually spoof a trusted brand (e.g., hdfc-update.top).
+
+4. FRONTEND UI & EXPLAINABLE AI (XAI)
+-------------------------------------------------------------
+The dashboard abandons the "Black Box" approach. It features:
+- Confidence Scoring: Instead of guessing on vague texts, the system has an "INSUFFICIENT EVIDENCE" state, reminding users that just because a message passed technical checks doesn't mean it's 100% safe.
+- 'Why We Flagged This' Panel: Iterates through the exact evidence the backend found (e.g., "✓ URL redirect traced").
+- 'What You Should Do' Panel: Provides actionable, context-aware advice (e.g., "✕ Do not panic. Verify with the official service.").
+
+5. LIMITATIONS & FUTURE SCOPE (PHASE 2)
+-------------------------------------------------------------
+To ensure zero-latency offline processing for this MVP, Phase 1 uses a Deterministic Heuristic Engine. 
+While highly effective, rule-based engines can be bypassed by complex synonyms. 
+* Future Scope (Phase 2): The architecture is designed to eventually swap the keyword dictionaries with a fine-tuned Multilingual LLM (like BERT or Llama) for semantic intent detection, paired with Graph Neural Networks to analyze UPI ID transaction history and Metadata Reputation (Truecaller APIs).
