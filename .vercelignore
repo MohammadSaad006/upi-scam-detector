@@ -1,0 +1,17 @@
+.git/
+venv/
+backend/venv/
+backend/__pycache__/
+frontend/.dart_tool/
+frontend/windows/
+frontend/android/
+frontend/ios/
+frontend/macos/
+frontend/linux/
+frontend/build/windows/
+frontend/build/app/
+frontend/build/host/
+frontend/build/ios/
+frontend/build/macos/
+frontend/build/linux/
+demo_qrs/
