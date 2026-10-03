@@ -196,7 +196,7 @@ class _MizanHomeState extends State<MizanHome> {
           // Logo
           Row(
             children: [
-              const Icon(Icons.account_balance_rounded, color: MizanTheme.brass, size: 28),
+              Image.asset('assets/logo.jpeg', width: 32, height: 32),
               const SizedBox(width: 12),
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,

@@ -12,3 +12,5 @@ env/
 .idea/
 
 # Flutter is already covered in frontend/.gitignore
+
+.vercel
