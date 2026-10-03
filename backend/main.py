@@ -5,8 +5,13 @@ import re
 import urllib.parse
 import cv2
 import numpy as np
+import requests
+import dns.resolver
+import math
+from collections import Counter
+import socket
 
-app = FastAPI(title="Advanced UPI Scam Detection API")
+app = FastAPI(title="Forensic UPI Scam Detection API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,144 +24,174 @@ app.add_middleware(
 class AnalyzeResponse(BaseModel):
     status: str
     score: int
-    highlights: list[str]
     summary: str
+    highlights: list[str]
     metrics: dict
+    forensic_report: dict
 
-# --- Advanced Risk Analyzer Module ---
-
-class RiskAnalyzer:
+class ForensicAnalyzer:
     def __init__(self):
-        # High-risk keywords grouped by intent
-        self.urgency_words = [r"urgently", r"immediately", r"within 24 hours", r"suspend", r"block", r"blocked", r"expire"]
-        self.financial_words = [r"kyc", r"pan", r"aadhar", r"refund", r"cashback", r"lottery", r"prize", r"winner"]
-        self.action_words = [r"click here", r"verify now", r"update", r"claim"]
+        self.urgency_words = [r"urgently", r"immediately", r"within 24 hours", r"suspend", r"block", r"expire", r"action required"]
+        self.financial_words = [r"kyc", r"pan", r"aadhar", r"refund", r"cashback", r"lottery", r"prize", r"winner", r"credited"]
+        self.suspicious_tlds = [".xyz", ".top", ".loan", ".win", ".club", ".click", ".asia", ".tk"]
+        self.spoof_targets = ["sbi", "hdfc", "icici", "paytm", "phonepe", "gpay", "bank", "axis"]
         
-        # Known bad TLDs and suspicious domains
-        self.suspicious_tlds = [".xyz", ".top", ".loan", ".win", ".club", ".click"]
-        self.spoof_targets = ["sbi", "hdfc", "icici", "paytm", "phonepe", "gpay", "bank"]
+    def calculate_entropy(self, text):
+        if not text:
+            return 0
+        entropy = 0
+        for x in Counter(text).values():
+            p_x = float(x) / len(text)
+            entropy += - p_x * math.log2(p_x)
+        return round(entropy, 2)
+
+    def resolve_dns(self, domain):
+        try:
+            answers = dns.resolver.resolve(domain, 'A')
+            return [ip.to_text() for ip in answers]
+        except Exception:
+            return []
+
+    def trace_redirects(self, url):
+        try:
+            # Setting a timeout to prevent hanging on malicious sites
+            response = requests.head(url, allow_redirects=True, timeout=3)
+            if response.history:
+                return response.url # The final destination URL
+            return url
+        except Exception:
+            return url
 
     def extract_urls(self, text):
-        url_pattern = re.compile(r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*')
-        return url_pattern.findall(text)
+        return re.findall(r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s]*', text)
 
-    def analyze_url(self, url):
-        score = 0
-        highlights = []
-        try:
-            parsed = urllib.parse.urlparse(url)
-            domain = parsed.netloc.lower()
-            path = parsed.path.lower()
-            
-            # 1. IP address instead of domain name
-            if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", domain):
-                score += 40
-                highlights.append(domain)
-            
-            # 2. Suspicious TLDs
-            if any(domain.endswith(tld) for tld in self.suspicious_tlds):
-                score += 30
-                highlights.append(domain)
-                
-            # 3. Spoofing - e.g., sbi-update-kyc.com
-            for target in self.spoof_targets:
-                if target in domain and domain != f"{target}.com" and domain != f"{target}.co.in":
-                    score += 40
-                    highlights.append(target)
-            
-            # 4. Long / suspicious paths with financial keywords
-            if any(word in path for word in ["kyc", "verify", "refund"]):
-                score += 20
-                highlights.append("verify" if "verify" in path else ("kyc" if "kyc" in path else "refund"))
+    def extract_entities(self, text):
+        phones = re.findall(r'\+?\d{10,14}', text)
+        emails = re.findall(r'[\w.-]+@[\w.-]+', text)
+        upi_ids = [e for e in emails if "upi" in e or "paytm" in e or "ybl" in e or "ibl" in e]
+        return {"phones": phones, "upi_ids": upi_ids}
 
-        except Exception:
-            pass
-        return score, highlights
-
-    def analyze_text(self, text):
+    def analyze_deep(self, text):
         text_lower = text.lower()
         score = 0
         highlights = []
+        metrics = {"urgency": 0, "financial": 0, "url_risk": 0}
         
-        metrics = {
-            "urgency": 0,
-            "financial": 0,
-            "url_risk": 0
+        forensic_report = {
+            "network_analysis": [],
+            "linguistic_analysis": [],
+            "entity_extraction": {}
         }
 
-        # 1. Check Urgency
+        # 1. Linguistic & Semantic Analysis
         for word in self.urgency_words:
             if re.search(r'\b' + word + r'\b', text_lower):
                 score += 25
                 metrics["urgency"] += 1
                 highlights.append(word)
+                forensic_report["linguistic_analysis"].append(f"High urgency semantic trigger detected: '{word}'")
 
-        # 2. Check Financial/Scam Themes
         for word in self.financial_words:
             if re.search(r'\b' + word + r'\b', text_lower):
                 score += 20
                 metrics["financial"] += 1
                 highlights.append(word)
-                
-        # 3. Analyze any URLs in the text
-        urls = self.extract_urls(text)
-        for url in urls:
-            url_score, url_highlights = self.analyze_url(url)
-            score += url_score
-            metrics["url_risk"] += 1
-            highlights.extend(url_highlights)
-            
-        # 4. Detect suspicious UPI IDs
-        if re.search(r'[\w.-]+@[\w.-]+', text_lower) and not urls:
-            # basic check if it's not an email, but a typical upi string
-            if "upi" in text_lower or "paytm" in text_lower:
-                if re.search(r'\b\d{10}@', text_lower) or re.search(r'random|fraud|cash', text_lower):
-                    score += 30
-                    highlights.append(re.search(r'[\w.-]+@[\w.-]+', text_lower).group())
+                forensic_report["linguistic_analysis"].append(f"Financial manipulation trigger detected: '{word}'")
 
-        # Cap score at 100
+        # 2. Entity Extraction
+        entities = self.extract_entities(text_lower)
+        forensic_report["entity_extraction"] = entities
+        if entities["upi_ids"]:
+            for upi in entities["upi_ids"]:
+                if re.search(r'fraud|random|cash|prize', upi):
+                    score += 40
+                    highlights.append(upi)
+                    forensic_report["network_analysis"].append(f"Malicious UPI Handle structure detected: {upi}")
+
+        # 3. Deep URL/Network Analysis
+        urls = self.extract_urls(text)
+        if urls:
+            for original_url in urls:
+                final_url = self.trace_redirects(original_url)
+                if final_url != original_url:
+                    forensic_report["network_analysis"].append(f"URL Redirection mapped: {original_url} -> {final_url}")
+                
+                parsed = urllib.parse.urlparse(final_url)
+                domain = parsed.netloc.lower()
+                
+                # Check for IP address obfuscation
+                if re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", domain):
+                    score += 50
+                    highlights.append(domain)
+                    forensic_report["network_analysis"].append(f"Direct IP routing used instead of DNS (Obfuscation): {domain}")
+                else:
+                    # DNS Resolution
+                    ips = self.resolve_dns(domain)
+                    if not ips:
+                        forensic_report["network_analysis"].append(f"Domain {domain} failed DNS A-record resolution (Possibly blacklisted/dead)")
+                    else:
+                        forensic_report["network_analysis"].append(f"Domain {domain} resolved to IPs: {', '.join(ips)}")
+                
+                # Domain Entropy (DGA Detection)
+                entropy = self.calculate_entropy(domain)
+                if entropy > 4.0:
+                    score += 30
+                    forensic_report["network_analysis"].append(f"High Shannon Entropy ({entropy}) in domain. Potential DGA (Domain Generation Algorithm).")
+                
+                # Suspicious TLDs
+                if any(domain.endswith(tld) for tld in self.suspicious_tlds):
+                    score += 30
+                    metrics["url_risk"] += 1
+                    highlights.append(domain)
+                    forensic_report["network_analysis"].append(f"Domain utilizes a high-risk/cheap TLD common in phishing.")
+                    
+                # Brand Spoofing (Typosquatting)
+                for target in self.spoof_targets:
+                    if target in domain and not domain.endswith(f"{target}.com") and not domain.endswith(f"{target}.co.in"):
+                        score += 50
+                        metrics["url_risk"] += 1
+                        highlights.append(target)
+                        forensic_report["network_analysis"].append(f"Brand Spoofing Detected: Target '{target}' found in unregulated domain '{domain}'")
+
         score = min(score, 100)
         
-        # Determine Status
         if score >= 70:
             status = "High Risk"
-            summary = "Alert! This is highly likely a phishing or scam attempt. The message creates fake urgency and contains suspicious links or financial triggers. DO NOT click any links or share OTPs."
+            summary = "Alert! Forensic analysis confirms this is a phishing or scam attempt. The message utilizes manipulative linguistics and suspicious network routing."
         elif score >= 30:
             status = "Suspicious"
-            summary = "Warning! This message contains elements commonly used by scammers. Verify the sender through official channels before proceeding."
+            summary = "Warning! Our engine detected anomalies in the linguistic patterns or URLs. Proceed with extreme caution."
         else:
             status = "Safe"
-            summary = "This message appears safe. No major risk indicators were found. Still, always exercise caution with personal data."
+            summary = "Forensic analysis found no immediate threat vectors (Spoofing, DGA, or High-Risk IPs) in this content."
 
-        return score, status, summary, list(set(highlights)), metrics
+        return score, status, summary, list(set(highlights)), metrics, forensic_report
 
-
-analyzer = RiskAnalyzer()
+analyzer = ForensicAnalyzer()
 
 @app.post("/api/analyze", response_model=AnalyzeResponse)
 async def analyze_content(text: str = Form(...)):
     if not text or not text.strip():
         raise HTTPException(status_code=400, detail="No content provided")
         
-    score, status, summary, highlights, metrics = analyzer.analyze_text(text)
+    score, status, summary, highlights, metrics, forensic = analyzer.analyze_deep(text)
     
     return AnalyzeResponse(
         status=status,
         score=score,
-        highlights=highlights,
         summary=summary,
-        metrics=metrics
+        highlights=highlights,
+        metrics=metrics,
+        forensic_report=forensic
     )
 
 @app.post("/api/analyze/qr", response_model=AnalyzeResponse)
 async def analyze_qr(file: UploadFile = File(...)):
     try:
-        # Read image
         contents = await file.read()
         nparr = np.frombuffer(contents, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         
-        # Decode QR
         detector = cv2.QRCodeDetector()
         data, bbox, _ = detector.detectAndDecode(img)
         
@@ -164,21 +199,22 @@ async def analyze_qr(file: UploadFile = File(...)):
             return AnalyzeResponse(
                 status="Safe",
                 score=0,
-                highlights=[],
                 summary="No valid QR code detected in the image.",
-                metrics={"qr_read": False}
+                highlights=[],
+                metrics={"qr_read": False},
+                forensic_report={}
             )
             
-        # Analyze the extracted QR data (which is usually a URL or UPI string)
-        score, status, summary, highlights, metrics = analyzer.analyze_text(data)
+        score, status, summary, highlights, metrics, forensic = analyzer.analyze_deep(data)
         metrics["qr_data_extracted"] = data
         
         return AnalyzeResponse(
             status=status,
             score=score,
+            summary=f"[QR Extracted Payload: {data}]\n\n{summary}",
             highlights=highlights,
-            summary=f"[QR Data: {data}]\n\n{summary}",
-            metrics=metrics
+            metrics=metrics,
+            forensic_report=forensic
         )
         
     except Exception as e:
@@ -186,4 +222,4 @@ async def analyze_qr(file: UploadFile = File(...)):
 
 @app.get("/")
 def read_root():
-    return {"message": "Advanced UPI Scam Detection Engine is online."}
+    return {"message": "Forensic Cybersec Engine is online."}
