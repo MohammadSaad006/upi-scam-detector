@@ -81,12 +81,19 @@ class _MizanHomeState extends State<MizanHome> {
     _fetchHistory();
   }
 
+  String get _apiUrl {
+    if (kIsWeb) {
+      return Uri.base.origin; // Uses the Vercel domain when hosted
+    }
+    return 'http://127.0.0.1:8000';
+  }
+
   Future<void> _analyze() async {
     final text = _ctrl.text.trim();
     if (text.isEmpty) return;
     setState(() { _loading = true; _result = null; _error = ''; });
     try {
-      final res = await http.post(Uri.parse('http://127.0.0.1:8000/api/analyze'), body: {'text': text});
+      final res = await http.post(Uri.parse('$_apiUrl/api/analyze'), body: {'text': text});
       if (res.statusCode == 200) {
         setState(() => _result = json.decode(res.body));
         _fetchHistory();
@@ -105,7 +112,7 @@ class _MizanHomeState extends State<MizanHome> {
     if (img == null) return;
     setState(() { _loading = true; _result = null; _error = ''; });
     try {
-      final req = http.MultipartRequest('POST', Uri.parse('http://127.0.0.1:8000/api/analyze/qr'));
+      final req = http.MultipartRequest('POST', Uri.parse('$_apiUrl/api/analyze/qr'));
       if (kIsWeb) {
         final b = await img.readAsBytes();
         req.files.add(http.MultipartFile.fromBytes('file', b, filename: img.name));
@@ -132,7 +139,7 @@ class _MizanHomeState extends State<MizanHome> {
 
   Future<void> _fetchHistory() async {
     try {
-      final res = await http.get(Uri.parse('http://127.0.0.1:8000/api/history'));
+      final res = await http.get(Uri.parse('$_apiUrl/api/history'));
       if (res.statusCode == 200) {
         setState(() => _history = json.decode(res.body));
       }
