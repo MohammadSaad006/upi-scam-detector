@@ -4,20 +4,20 @@
     {
       "src": "backend/main.py",
       "use": "@vercel/python"
-    },
-    {
-      "src": "frontend/build/web/**",
-      "use": "@vercel/static"
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/backend/main.py"
+      "source": "/api/(.*)",
+      "destination": "/backend/main.py"
     },
     {
-      "src": "/(.*)",
-      "dest": "/frontend/build/web/$1"
+      "source": "/",
+      "destination": "/frontend/build/web/index.html"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/frontend/build/web/$1"
     }
   ]
 }
