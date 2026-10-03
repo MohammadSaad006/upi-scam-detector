@@ -193,9 +193,9 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 60,
-      color: T.surface,
       padding: const EdgeInsets.symmetric(horizontal: 32),
       decoration: const BoxDecoration(
+        color: T.surface,
         border: Border(bottom: BorderSide(color: T.border)),
       ),
       child: Row(
