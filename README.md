@@ -1,6 +1,8 @@
-# 🛡️ TrustGuard — Forensic UPI Threat Intelligence System
+# ⚖️ MIZAN — Forensic UPI Threat Intelligence System
 > **Hackathon PS-04 | Cybersecurity Track**  
 > A production-grade, multi-layered forensic engine to detect UPI payment scams, phishing, and social engineering attacks in real time.
+
+**🌐 Live Demo:** [MIZAN | Measure before you trust](https://mizan-eta-gules.vercel.app/)
 
 ---
 
@@ -8,7 +10,7 @@
 
 India processes **14 billion UPI transactions per month**. In FY2023-24, Indian citizens lost ₹1,750+ crore to UPI-related financial fraud. Existing payment apps only flag transactions **after** the money is gone. There is no tool that analyzes the **message or QR code** a victim receives *before* they act.
 
-**TrustGuard intercepts the threat at the social engineering layer — before any payment is made.**
+**MIZAN intercepts the threat at the social engineering layer — before any payment is made.**
 
 ---
 
