@@ -214,8 +214,8 @@ class _MizanHomeState extends State<MizanHome> {
               children: [
                 _NavLink(title: 'Analyze', isActive: true, onTap: _reset),
                 _NavLink(title: 'How it works', onTap: _openDocumentation),
-                _NavLink(title: 'Test cases', onTap: () {}),
-                _NavLink(title: 'Safety tips', onTap: () {}),
+                _NavLink(title: 'Test cases', onTap: _populateTestCase),
+                _NavLink(title: 'Safety tips', onTap: _showSafetyTips),
               ],
             ),
           const Spacer(),
@@ -250,6 +250,47 @@ class _MizanHomeState extends State<MizanHome> {
     } catch (e) {
       debugPrint('Error opening doc: $e');
     }
+  }
+
+  void _populateTestCase() {
+    _reset();
+    _ctrl.text = "Dear Customer, Your HDFC account KYC is pending. It will be blocked today if not updated. Please update immediately at http://hdfc-kyc-update.xyz/login";
+  }
+
+  void _showSafetyTips() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: MizanTheme.parchment,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.shield_outlined, color: MizanTheme.brass),
+            SizedBox(width: 12),
+            Text("General Safety Tips", style: TextStyle(color: MizanTheme.ink, fontWeight: FontWeight.w800)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text("1. Never share your OTP, PIN, or CVV.", style: TextStyle(height: 1.5, color: MizanTheme.ink, fontSize: 14)),
+            SizedBox(height: 12),
+            Text("2. Do not click on unknown links sent via SMS or WhatsApp.", style: TextStyle(height: 1.5, color: MizanTheme.ink, fontSize: 14)),
+            SizedBox(height: 12),
+            Text("3. Always verify the source by contacting the organization directly using their official number.", style: TextStyle(height: 1.5, color: MizanTheme.ink, fontSize: 14)),
+            SizedBox(height: 12),
+            Text("4. Legitimate banks will not create artificial urgency to suspend your account.", style: TextStyle(height: 1.5, color: MizanTheme.ink, fontSize: 14)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Got it", style: TextStyle(color: MizanTheme.sienna, fontWeight: FontWeight.w700)),
+          )
+        ],
+      ),
+    );
   }
 
   Widget _buildHomeContent(BuildContext context) {
@@ -480,36 +521,120 @@ class _MizanHomeState extends State<MizanHome> {
       ),
     );
   }
-  
+
   // --- RESULT VIEW ---
   Widget _buildResultView() {
     final d = _result!;
     final score = d['score'] as int? ?? 0;
-    final status = d['status'] as String? ?? 'Unknown';
-    final summary = d['summary'] as String? ?? '';
+    final status = (d['status'] as String? ?? 'Unknown').toUpperCase();
+    
+    final isHighRisk = score >= 70 || status.contains('HIGH');
+    final isSuspicious = score >= 35 && score < 70 || status.contains('SUSPICIOUS');
+    
+    final verdictColor = isHighRisk ? MizanTheme.sienna : (isSuspicious ? MizanTheme.brass : MizanTheme.obsidian);
+    final verdictBg = isHighRisk ? MizanTheme.highRisk : (isSuspicious ? MizanTheme.suspicious : MizanTheme.safe);
+    
+    String headline = "NO MAJOR WARNING SIGNS FOUND";
+    String subHeadline = "This message does not currently show strong signals associated with common scams.";
+    if (isHighRisk) {
+      headline = "This looks like a scam.";
+      subHeadline = "MIZAN found several warning signs that commonly appear in fraudulent payment or account messages.";
+    } else if (isSuspicious) {
+      headline = "Be careful before acting on this message.";
+      subHeadline = "MIZAN found signals that deserve verification.";
+    }
+
     final whyFlagged = (d['why_flagged'] as List?) ?? [];
     final recommendedAction = (d['recommended_action'] as List?) ?? [];
     final highlights = (d['highlights'] as List?) ?? [];
-    final metrics = d['metrics'] as Map<String, dynamic>? ?? {};
-
-    Color verdictColor;
-    Color verdictBg;
-    if (score >= 70 || status.toLowerCase().contains('high')) {
-      verdictColor = MizanTheme.sienna;
-      verdictBg = MizanTheme.highRisk;
-    } else if (score >= 35 || status.toLowerCase().contains('suspicious')) {
-      verdictColor = MizanTheme.obsidian;
-      verdictBg = MizanTheme.suspicious;
-    } else {
-      verdictColor = MizanTheme.obsidian;
-      verdictBg = MizanTheme.safe;
+    
+    // We try to make sense of the backend data to map to human-readable cards
+    List<Widget> reasonCards = [];
+    for (int i = 0; i < whyFlagged.length; i++) {
+      String raw = whyFlagged[i].toString();
+      String title = "Warning Sign";
+      String what = raw.replaceAll('✓', '').trim();
+      String why = "This pattern is frequently used by malicious actors.";
+      IconData icon = Icons.warning_amber_rounded;
+      
+      if (raw.toLowerCase().contains('urgency') || raw.toLowerCase().contains('immediately')) {
+        title = "Creates urgency";
+        icon = Icons.notifications_active_outlined;
+        why = "Scammers often create urgency to stop you from thinking or verifying the request.";
+      } else if (raw.toLowerCase().contains('url') || raw.toLowerCase().contains('domain') || raw.toLowerCase().contains('link')) {
+        title = "Suspicious link";
+        icon = Icons.link_rounded;
+        why = "A misleading or unfamiliar domain can be used to imitate a legitimate website.";
+      } else if (raw.toLowerCase().contains('impersonation') || raw.toLowerCase().contains('informal request') || raw.toLowerCase().contains('spoofing')) {
+        title = "Possible impersonation";
+        icon = Icons.account_balance_outlined;
+        why = "Scammers often imitate trusted organizations or contacts to make requests look genuine.";
+      }
+      
+      reasonCards.add(_buildReasonCard(
+        index: i + 1,
+        title: title,
+        icon: icon,
+        whatFound: what,
+        whyMatters: why,
+      ));
     }
+
+    if (reasonCards.isEmpty) {
+      reasonCards.add(_buildReasonCard(index: 1, title: "Clean scan", icon: Icons.check_circle_outline, whatFound: "No immediate threats detected.", whyMatters: "The message passes standard heuristic checks."));
+    }
+
+    // Evidence mapping
+    List<Widget> evidenceCards = [];
+    if (highlights.isNotEmpty) {
+      evidenceCards.add(_buildEvidenceCard(
+        icon: Icons.chat_bubble_outline,
+        title: "Suspicious message text",
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: highlights.map((e) => Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            color: MizanTheme.highRisk.withOpacity(0.5),
+            child: Text(e.toString(), style: const TextStyle(fontFamily: 'Roboto Mono', fontSize: 13, color: MizanTheme.sienna, fontWeight: FontWeight.w600)),
+          )).toList(),
+        )
+      ));
+    }
+    
+    String? foundUrl;
+    for (var f in whyFlagged) {
+      if (f.toString().contains('http')) {
+        foundUrl = f.toString().split(' ').firstWhere((e) => e.contains('http'), orElse: () => 'link');
+        break;
+      }
+    }
+    if (foundUrl != null) {
+      evidenceCards.add(_buildEvidenceCard(
+        icon: Icons.link_rounded,
+        title: "Link found in message",
+        content: Text(foundUrl, style: const TextStyle(fontFamily: 'Roboto Mono', fontSize: 13, color: MizanTheme.ink)),
+        badge: "Not an official domain",
+      ));
+    }
+
+    // Actions
+    List<Widget> actionSteps = [];
+    for (int i = 0; i < recommendedAction.length; i++) {
+      String raw = recommendedAction[i].toString().replaceAll('✕', '').trim();
+      actionSteps.add(_buildActionStep(i + 1, raw));
+    }
+    if (actionSteps.isEmpty) {
+      actionSteps.add(_buildActionStep(1, "Verify directly through official channels before acting."));
+    }
+
+    final bool isDesktop = MediaQuery.of(context).size.width > 900;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 900),
+          constraints: const BoxConstraints(maxWidth: 1200),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -525,116 +650,114 @@ class _MizanHomeState extends State<MizanHome> {
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
               
-              // Verdict Header
-              Container(
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: verdictBg,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: verdictColor.withOpacity(0.2)),
-                ),
+              // --- HERO SECTION ---
+              isDesktop ? IntrinsicHeight(
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      '$score',
-                      style: TextStyle(fontSize: 72, fontWeight: FontWeight.w800, color: verdictColor, height: 1),
-                    ),
-                    const SizedBox(width: 32),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(status.toUpperCase(), style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: verdictColor, letterSpacing: 2)),
-                          const SizedBox(height: 8),
-                          Text(summary, style: TextStyle(fontSize: 18, color: verdictColor.withOpacity(0.8), height: 1.4)),
-                        ],
-                      ),
-                    ),
+                    Expanded(flex: 3, child: _buildVerdictPanel(status, headline, subHeadline, verdictColor, verdictBg, isHighRisk)),
+                    const SizedBox(width: 16),
+                    _buildScorePanel(score, verdictColor, verdictBg),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 2, child: _buildDisclaimerPanel()),
                   ],
                 ),
-              ),
-              
-              const SizedBox(height: 40),
-              
-              // Telemetry
-              const Text('EXAMINATION TELEMETRY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.5, color: MizanTheme.brass)),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 24,
-                runSpacing: 24,
+              ) : Column(
                 children: [
-                  SizedBox(width: 200, child: _buildMetricBar('Urgency', metrics['urgency'] ?? 0, 5)),
-                  SizedBox(width: 200, child: _buildMetricBar('Financial', metrics['financial'] ?? 0, 5)),
-                  SizedBox(width: 200, child: _buildMetricBar('URL Risk', metrics['url_risk'] ?? 0, 3)),
-                  SizedBox(width: 200, child: _buildMetricBar('Impersonation', metrics['impersonation'] ?? 0, 3)),
+                  _buildVerdictPanel(status, headline, subHeadline, verdictColor, verdictBg, isHighRisk),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: _buildScorePanel(score, verdictColor, verdictBg)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildDisclaimerPanel(),
                 ],
               ),
               
               const SizedBox(height: 40),
               
-              if (highlights.isNotEmpty) ...[
-                const Text('EXTRACTED EVIDENCE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.5, color: MizanTheme.brass)),
+              // --- WHY FLAGGED SECTION ---
+              const _SectionHeader(title: "Why MIZAN flagged this", subtitle: "These are the main warning signs found in your message.", icon: Icons.bar_chart_rounded),
+              const SizedBox(height: 16),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: reasonCards.map((c) => Padding(padding: const EdgeInsets.only(right: 16), child: c)).toList(),
+                ),
+              ),
+              
+              const SizedBox(height: 40),
+              
+              // --- EVIDENCE SECTION ---
+              if (evidenceCards.isNotEmpty) ...[
+                const _SectionHeader(title: "Evidence we found", subtitle: "These are the specific elements from your message that triggered the risk signals.", icon: Icons.search_rounded),
                 const SizedBox(height: 16),
                 Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: highlights.map((e) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(color: MizanTheme.white, border: Border.all(color: MizanTheme.stone), borderRadius: BorderRadius.circular(4)),
-                    child: Text(e.toString(), style: const TextStyle(fontFamily: 'Roboto Mono', fontSize: 13, color: MizanTheme.ink)),
-                  )).toList(),
+                  spacing: 16,
+                  runSpacing: 16,
+                  children: evidenceCards,
                 ),
                 const SizedBox(height: 40),
               ],
               
-              if (whyFlagged.isNotEmpty) ...[
-                const Text('WHY FLAGGED', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.5, color: MizanTheme.brass)),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(color: MizanTheme.white, border: const Border(left: BorderSide(color: MizanTheme.sienna, width: 4)), boxShadow: MizanTheme.cardShadow),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: whyFlagged.map((e) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.emergency_outlined, color: MizanTheme.sienna, size: 18),
-                          const SizedBox(width: 12),
-                          Expanded(child: Text(e.toString(), style: const TextStyle(fontSize: 15, color: MizanTheme.ink, height: 1.5))),
-                        ],
-                      ),
-                    )).toList(),
-                  ),
+              // --- ACTION SECTION ---
+              Container(
+                decoration: BoxDecoration(color: MizanTheme.safe.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: MizanTheme.obsidian.withOpacity(0.1))),
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(padding: const EdgeInsets.all(8), decoration: const BoxDecoration(color: MizanTheme.obsidian, shape: BoxShape.circle), child: const Icon(Icons.shield_outlined, color: MizanTheme.white, size: 24)),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text("What you should do now", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: MizanTheme.ink, letterSpacing: -0.5)),
+                              Text("Follow these steps to keep your money and information safe.", style: TextStyle(fontSize: 14, color: MizanTheme.ink.withOpacity(0.7))),
+                            ],
+                          ),
+                        )
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                    isDesktop 
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: Wrap(
+                                spacing: 24, runSpacing: 24,
+                                children: actionSteps,
+                              )
+                            ),
+                            if (isHighRisk || isSuspicious) ...[
+                              const SizedBox(width: 24),
+                              Expanded(flex: 1, child: _buildEmergencyPanel()),
+                            ]
+                          ],
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            ...actionSteps.map((s) => Padding(padding: const EdgeInsets.only(bottom: 16), child: s)),
+                            if (isHighRisk || isSuspicious) ...[
+                              const SizedBox(height: 16),
+                              _buildEmergencyPanel(),
+                            ]
+                          ],
+                        ),
+                  ],
                 ),
-                const SizedBox(height: 40),
-              ],
-              
-              if (recommendedAction.isNotEmpty) ...[
-                const Text('RECOMMENDED ACTION', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.5, color: MizanTheme.brass)),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(color: MizanTheme.white, border: const Border(left: BorderSide(color: MizanTheme.obsidian, width: 4)), boxShadow: MizanTheme.cardShadow),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: recommendedAction.map((e) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.shield_outlined, color: MizanTheme.obsidian, size: 18),
-                          const SizedBox(width: 12),
-                          Expanded(child: Text(e.toString(), style: const TextStyle(fontSize: 15, color: MizanTheme.ink, height: 1.5))),
-                        ],
-                      ),
-                    )).toList(),
-                  ),
-                ),
-              ],
+              ),
+              const SizedBox(height: 80),
             ],
           ),
         ),
@@ -642,29 +765,271 @@ class _MizanHomeState extends State<MizanHome> {
     );
   }
 
-  Widget _buildMetricBar(String label, int value, int max) {
-    final pct = max > 0 ? (value / max).clamp(0.0, 1.0) : 0.0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: MizanTheme.ink)),
-            Text('\$value/\$max', style: const TextStyle(fontSize: 12, color: MizanTheme.stone)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Container(
-          height: 4,
-          width: double.infinity,
-          color: MizanTheme.stone.withOpacity(0.3),
-          child: FractionallySizedBox(
-            alignment: Alignment.centerLeft,
-            widthFactor: pct,
-            child: Container(color: value > 0 ? MizanTheme.sienna : MizanTheme.stone),
+  Widget _buildVerdictPanel(String status, String headline, String subHeadline, Color color, Color bg, bool isHighRisk) {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withOpacity(0.2))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              if (isHighRisk) ...[
+                Icon(Icons.warning_rounded, color: color, size: 28),
+                const SizedBox(width: 12),
+              ],
+              Text(status, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: color, letterSpacing: 1.5)),
+            ],
           ),
-        ),
+          const SizedBox(height: 16),
+          Text(headline, style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w800, color: MizanTheme.ink, letterSpacing: -1, height: 1.1)),
+          const SizedBox(height: 16),
+          Text(subHeadline, style: TextStyle(fontSize: 16, color: MizanTheme.ink.withOpacity(0.8), height: 1.5)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScorePanel(int score, Color color, Color bg) {
+    return Container(
+      width: 240,
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(color: bg.withOpacity(0.5), borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withOpacity(0.1))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              const Text("Risk score", style: TextStyle(fontSize: 14, color: MizanTheme.ink, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 6),
+              Icon(Icons.info_outline, size: 14, color: color),
+            ],
+          ),
+          const SizedBox(height: 16),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text('$score', style: TextStyle(fontSize: 72, fontWeight: FontWeight.w800, color: color, height: 1, letterSpacing: -2)),
+                Text('/100', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: color.withOpacity(0.7))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+            child: Text(score >= 70 ? "Severe risk" : (score >= 35 ? "Moderate risk" : "Low risk"), style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDisclaimerPanel() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(color: MizanTheme.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: MizanTheme.stone.withOpacity(0.5))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.info_outline, color: MizanTheme.brass, size: 24),
+              SizedBox(width: 12),
+              Text("What this means", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: MizanTheme.ink)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          RichText(
+            text: TextSpan(
+              style: TextStyle(fontFamily: 'Inter', fontSize: 14, color: MizanTheme.ink.withOpacity(0.8), height: 1.5),
+              children: const [
+                TextSpan(text: "MIZAN's analysis shows indicators of a potential threat. This is "),
+                TextSpan(text: "not a diagnosis", style: TextStyle(fontWeight: FontWeight.w700, color: MizanTheme.ink)),
+                TextSpan(text: ", but an AI-based risk assessment to help you make a safer decision.\n\n"),
+                TextSpan(text: "It is not a guarantee that fraud has occurred. Always verify through the official source before taking any action."),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReasonCard({required int index, required String title, required IconData icon, required String whatFound, required String whyMatters}) {
+    return Container(
+      width: 340,
+      decoration: BoxDecoration(color: MizanTheme.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: MizanTheme.stone.withOpacity(0.5))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('0$index', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: MizanTheme.brass)),
+                const SizedBox(width: 16),
+                Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: MizanTheme.sienna.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: MizanTheme.sienna, size: 24)),
+                const SizedBox(width: 16),
+                Expanded(child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: MizanTheme.ink))),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: MizanTheme.stone),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("What we found", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: MizanTheme.ink)),
+                      const SizedBox(height: 8),
+                      Text(whatFound, style: TextStyle(fontSize: 13, color: MizanTheme.ink.withOpacity(0.7), height: 1.4)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: MizanTheme.highRisk.withOpacity(0.3), borderRadius: BorderRadius.circular(8)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("Why it matters", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: MizanTheme.sienna)),
+                        const SizedBox(height: 8),
+                        Text(whyMatters, style: TextStyle(fontSize: 13, color: MizanTheme.sienna.withOpacity(0.9), height: 1.4)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEvidenceCard({required IconData icon, required String title, required Widget content, String? badge}) {
+    return Container(
+      width: 360,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(color: MizanTheme.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: MizanTheme.stone.withOpacity(0.5))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: MizanTheme.brass, size: 24),
+              const SizedBox(width: 12),
+              Expanded(child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: MizanTheme.ink))),
+              if (badge != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(color: MizanTheme.highRisk.withOpacity(0.5), borderRadius: BorderRadius.circular(4)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline, color: MizanTheme.sienna, size: 12),
+                      const SizedBox(width: 4),
+                      Text(badge, style: const TextStyle(fontSize: 11, color: MizanTheme.sienna, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                )
+              ]
+            ],
+          ),
+          const SizedBox(height: 20),
+          content,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionStep(int number, String text) {
+    return SizedBox(
+      width: 320,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28, height: 28,
+            decoration: const BoxDecoration(color: MizanTheme.obsidian, shape: BoxShape.circle),
+            alignment: Alignment.center,
+            child: Text('$number', style: const TextStyle(color: MizanTheme.white, fontSize: 13, fontWeight: FontWeight.w800)),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(text, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: MizanTheme.ink, height: 1.3)),
+                const SizedBox(height: 6),
+                Text("Follow official procedures.", style: TextStyle(fontSize: 13, color: MizanTheme.ink.withOpacity(0.6))),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmergencyPanel() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(color: MizanTheme.parchment, borderRadius: BorderRadius.circular(12), border: Border.all(color: MizanTheme.brass.withOpacity(0.3))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: const [
+              Icon(Icons.lightbulb_outline_rounded, color: MizanTheme.sienna, size: 24),
+              SizedBox(width: 12),
+              Expanded(child: Text("If you have already clicked the link or shared information", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: MizanTheme.sienna, height: 1.3))),
+            ],
+          ),
+          const SizedBox(height: 16),
+          const Text("Contact your bank or payment provider immediately and follow their security steps.", style: TextStyle(fontSize: 13, color: MizanTheme.ink, height: 1.4)),
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  const _SectionHeader({required this.title, required this.subtitle, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: MizanTheme.brass, size: 28),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: MizanTheme.ink, letterSpacing: -0.5)),
+              const SizedBox(height: 4),
+              Text(subtitle, style: TextStyle(fontSize: 14, color: MizanTheme.ink.withOpacity(0.7))),
+            ],
+          ),
+        )
       ],
     );
   }
@@ -874,10 +1239,10 @@ class EvidenceArtwork extends StatelessWidget {
               child: _buildEvidenceCard(
                 width: 140,
                 child: Column(
-                  children: const [
-                    Icon(Icons.qr_code_2_rounded, size: 80, color: MizanTheme.ink),
-                    SizedBox(height: 8),
-                    Text('Scan & Pay', style: TextStyle(fontSize: 11, color: MizanTheme.stone)),
+                  children: [
+                    const Icon(Icons.qr_code_2_rounded, size: 80, color: MizanTheme.ink),
+                    const SizedBox(height: 8),
+                    Text('Scan & Pay', style: TextStyle(fontSize: 12, color: MizanTheme.ink.withOpacity(0.6), fontWeight: FontWeight.w600)),
                     Text('₹4,999', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: MizanTheme.ink)),
                   ],
                 ),
@@ -907,10 +1272,10 @@ class EvidenceArtwork extends StatelessWidget {
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text('Payment Request', style: TextStyle(fontSize: 11, color: MizanTheme.stone)),
-                              Text('₹5,000', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: MizanTheme.ink)),
-                              Text('from business@upi', style: TextStyle(fontSize: 11, color: MizanTheme.stone)),
+                            children: [
+                              Text('Payment Request', style: TextStyle(fontSize: 12, color: MizanTheme.ink.withOpacity(0.6), fontWeight: FontWeight.w600)),
+                              const Text('₹5,000', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: MizanTheme.ink)),
+                              Text('from business@upi', style: TextStyle(fontSize: 12, color: MizanTheme.ink.withOpacity(0.6), fontWeight: FontWeight.w600)),
                             ],
                           ),
                         ),
@@ -919,9 +1284,9 @@ class EvidenceArtwork extends StatelessWidget {
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        Expanded(child: Container(padding: const EdgeInsets.symmetric(vertical: 8), decoration: BoxDecoration(border: Border.all(color: MizanTheme.stone), borderRadius: BorderRadius.circular(20)), alignment: Alignment.center, child: const Text('Decline', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))),
+                        Expanded(child: Container(padding: const EdgeInsets.symmetric(vertical: 8), decoration: BoxDecoration(border: Border.all(color: MizanTheme.stone), borderRadius: BorderRadius.circular(20)), alignment: Alignment.center, child: const Text('Decline', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: MizanTheme.ink)))),
                         const SizedBox(width: 12),
-                        Expanded(child: Container(padding: const EdgeInsets.symmetric(vertical: 8), decoration: BoxDecoration(color: MizanTheme.stone.withOpacity(0.3), borderRadius: BorderRadius.circular(20)), alignment: Alignment.center, child: const Text('Pay', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))),
+                        Expanded(child: Container(padding: const EdgeInsets.symmetric(vertical: 8), decoration: BoxDecoration(color: MizanTheme.stone.withOpacity(0.5), borderRadius: BorderRadius.circular(20)), alignment: Alignment.center, child: const Text('Pay', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: MizanTheme.ink)))),
                       ],
                     ),
                   ],
